@@ -5,39 +5,39 @@ import jsy.util.JsyApplication
 
 object Lab3 extends JsyApplication with Lab3Like {
   import jsy.lab3.ast._
-  
+
   /*
-   * CSCI 3155: Lab 3 
+   * CSCI 3155: Lab 3
    * <Sherry Nguyen>
-   * 
-   * Partner: <Your Partner's Name>
+   *
+   * Partner: <Ariel Riggan>
    * Collaborators: <Any Collaborators>
    */
 
   /*
    * Fill in the appropriate portions above by replacing things delimited
    * by '<'... '>'.
-   * 
+   *
    * Replace the '???' expression with your code in each function.
    *
    * Do not make other modifications to this template, such as
    * - adding "extends App" or "extends Application" to your Lab object,
    * - adding a "main" method, and
    * - leaving any failing asserts.
-   * 
+   *
    * Your lab will not be graded if it does not compile.
-   * 
+   *
    * This template compiles without error. Before you submit comment out any
    * code that does not compile or causes a failing assert. Simply put in a
    * '???' as needed to get something  that compiles without error. The '???'
    * is a Scala expression that throws the exception scala.NotImplementedError.
    */
-  
+
   /*
    * The implementations of these helper functions for conversions can come
    * Lab 2. The definitions for the new value type for Function are given.
    */
-  
+
   def toNumber(v: Expr): Double = {
     require(isValue(v))
     (v: @unchecked) match {
@@ -54,7 +54,7 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Function(_, _, _) => Double.NaN
     }
   }
-  
+
   def toBoolean(v: Expr): Boolean = {
     require(isValue(v))
     (v: @unchecked) match {
@@ -68,13 +68,13 @@ object Lab3 extends JsyApplication with Lab3Like {
       case _ => ??? // delete this line when done
     }
   }
-  
+
   def toStr(v: Expr): String = {
     require(isValue(v))
     (v: @unchecked) match {
       case S(s) => s
-        // Here in toStr(Function(_, _, _)), we will deviate from Node.js that returns the concrete syntax
-        // of the function (from the input program).
+      // Here in toStr(Function(_, _, _)), we will deviate from Node.js that returns the concrete syntax
+      // of the function (from the input program).
       case Function(_, _, _) => "function"
       case B(b) => if(b) "true" else "false"
       case N(n) => if (n.isWhole) "%.0f" format n else n.toString
@@ -199,7 +199,7 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Var(x) => lookup(env, x)
 
 
-        // ****** Your cases here
+      // ****** Your cases here
 
       case Call(e1, e2) => eval(env,e1) match {
         case Function(p, x, body) => p match {
@@ -243,12 +243,68 @@ object Lab3 extends JsyApplication with Lab3Like {
       /* Base Cases: Do Rules */
       case Print(v1) if isValue(v1) => println(pretty(v1)); Undefined
 
-        // ****** Your cases here
+      // ****** Your cases here
+      case Unary(Neg,e1) if(isValue(e1))=>  N(-toNumber(e1))
+      case Unary(Not,e1) if(isValue(e1))=> B(!toBoolean(e1))
 
+      case Binary(bop,e1,e2)=>
+        bop match {
+          case Seq if(isValue(e1))=> e2
+          case Plus if(isValue(e1)&&isValue(e2))=>
+            (e1,e2) match{
+              case (S(e1), e2) => S(e1+toStr(e2))
+              case (e1, S(e2)) => S(toStr(e1)+e2)
+              case (_, _) => N(toNumber(e1)+toNumber(e2))
+            }
+            //arithmetic
+          case Minus if(isValue(e1)&&isValue(e2))=> N(toNumber(e1)-toNumber(e2))
+          case Div if(isValue(e1)&&isValue(e2))=> N(toNumber(e1)/toNumber(e2))
+          case Times if(isValue(e1)&&isValue(e2))=>N(toNumber(e1)*toNumber(e2))
+
+            //Inequalities
+          case Lt | Le | Gt | Ge => B(inequalityVal(bop, e1, e2))
+          case Eq | Ne if(isValue(e1)&&isValue(e2))=>{
+            (e1,e2) match{
+              case (_,Function(_,_,_))=> ???
+              case (Function(_,_,_), _)=> ???
+              case (v1,v2)=> bop match {
+                case Eq=> B(e1==e2)
+                case Ne=> B(e1!=e2)
+              }
+            }
+          }
+            //And/or
+          case And if(isValue(e1))=> toBoolean(e1) match{
+            case true=> e2
+            case false=> e1
+          }
+          case Or if(isValue(e1))=> toBoolean(e1) match{
+            case true=> e1
+            case false=> e2
+          }
+    }
+      case Print(e1) if(isValue(e1))=> {
+        print(e1)
+        Undefined
+      }
+      case If(e1,e2,e3) if(isValue(e1))=> toBoolean(e1) match{
+        case true => e2
+        case false => e3
+      }
+
+      case ConstDecl(x,e1,e2) if(isValue(e1))=> substitute(e2,e1,x)
+      case Call(e1, e2) => {
+        e1 match {
+          case Function(name, x, body)=> name match{
+            case None=> substitute(body, e2, x)
+            case Some(f) if(isValue(e2))=> substitute(body, substitute(body,e2,x), f)
+          }
+        }
+      }
       /* Inductive Cases: Search Rules */
       case Print(e1) => Print(step(e1))
 
-        // ****** Your cases here
+      // ****** Your cases here
 
       /* Cases that should never match. Your cases above should ensure this. */
       case Var(_) => throw new AssertionError("Gremlins: internal error, not closed expression.")

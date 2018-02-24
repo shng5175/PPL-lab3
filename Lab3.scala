@@ -247,23 +247,23 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Unary(Neg,e1) if(isValue(e1))=>  N(-toNumber(e1))
       case Unary(Not,e1) if(isValue(e1))=> B(!toBoolean(e1))
 
-      case Binary(bop,e1,e2)=>
+      case Binary(bop,e1,e2) if(isValue(e1) && isValue(e2))=>
         bop match {
-          case Seq if(isValue(e1))=> e2
-          case Plus if(isValue(e1)&&isValue(e2))=>
+          case Seq => e2
+          case Plus=>
             (e1,e2) match{
               case (S(e1), e2) => S(e1+toStr(e2))
               case (e1, S(e2)) => S(toStr(e1)+e2)
               case (_, _) => N(toNumber(e1)+toNumber(e2))
             }
             //arithmetic
-          case Minus if(isValue(e1)&&isValue(e2))=> N(toNumber(e1)-toNumber(e2))
-          case Div if(isValue(e1)&&isValue(e2))=> N(toNumber(e1)/toNumber(e2))
-          case Times if(isValue(e1)&&isValue(e2))=>N(toNumber(e1)*toNumber(e2))
+          case Minus=> N(toNumber(e1)-toNumber(e2))
+          case Div=> N(toNumber(e1)/toNumber(e2))
+          case Times=>N(toNumber(e1)*toNumber(e2))
 
             //Inequalities
           case Lt | Le | Gt | Ge => B(inequalityVal(bop, e1, e2))
-          case Eq | Ne if(isValue(e1)&&isValue(e2))=>{
+          case Eq | Ne =>{
             (e1,e2) match{
               case (_,Function(_,_,_))=> ???
               case (Function(_,_,_), _)=> ???
@@ -274,11 +274,11 @@ object Lab3 extends JsyApplication with Lab3Like {
             }
           }
             //And/or
-          case And if(isValue(e1))=> toBoolean(e1) match{
+          case And => toBoolean(e1) match{
             case true=> e2
             case false=> e1
           }
-          case Or if(isValue(e1))=> toBoolean(e1) match{
+          case Or => toBoolean(e1) match{
             case true=> e1
             case false=> e2
           }
@@ -293,11 +293,11 @@ object Lab3 extends JsyApplication with Lab3Like {
       }
 
       case ConstDecl(x,e1,e2) if(isValue(e1))=> substitute(e2,e1,x)
-      case Call(e1, e2) => {
+      case Call(e1, e2) if(isValue(e1) && isValue(e2)) => {
         e1 match {
           case Function(name, x, body)=> name match{
             case None=> substitute(body, e2, x)
-            case Some(f) if(isValue(e2))=> substitute(body, substitute(body,e2,x), f)
+            case Some(f)=> substitute(substitute(body,e2,x), e1, f)
           }
         }
       }
@@ -305,7 +305,25 @@ object Lab3 extends JsyApplication with Lab3Like {
       case Print(e1) => Print(step(e1))
 
       // ****** Your cases here
-
+      case Unary(uop, e1) => uop match{
+        case Neg => Unary(Neg, step(e1))
+        case Not => Unary(Not, step(e1))
+      }
+      case Binary(bop, e1, e2) if(isValue(e1))=> {
+        bop match{
+          case Plus | Minus | Times | Div | Lt | Le | Gt | Ge => Binary(bop,e1,step(e2))
+          case Eq | Ne => e1 match {
+            case Function(_,_,_) => ???
+            case _ => Binary(bop,e1,step(e2))
+          }
+        }
+      }
+      case Binary(bop, e1, e2)=> Binary(bop, step(e1), e2)
+      case Print(e1) => Print(step(e1))
+      case If(e1,e2,e3) => If(step(e1),e2,e3)
+      case ConstDecl(x, e1, e2)=> ConstDecl(x, step(e1), e2)
+      case Call(e1,e2) if(isValue(e1))=> Call(e1, step(e2))
+      case Call(e1,e2) => Call(step(e1),e2)
       /* Cases that should never match. Your cases above should ensure this. */
       case Var(_) => throw new AssertionError("Gremlins: internal error, not closed expression.")
       case N(_) | B(_) | Undefined | S(_) | Function(_, _, _) => throw new AssertionError("Gremlins: internal error, step should not be called on values.");

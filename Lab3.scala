@@ -123,7 +123,8 @@ object Lab3 extends JsyApplication with Lab3Like {
       case N(_) | B(_) | S(_) | Undefined | Function(_, _, _) => e
 
       /* Base Cases */
-      case Binary(bop, e1, e2) => bop match {
+      case Binary(bop, e1, e2) =>
+        if (e1==DynamicTypeError) throw DynamicTypeError(e1) else if(e2==DynamicTypeError) throw DynamicTypeError(e2) else bop match {
         case Plus => (eval(env, e1), eval(env, e2)) match {
           case (S(s), e2) => S(s + toStr(e2))
           case (e1, S(s)) => S(toStr(e1) + s)
@@ -137,10 +138,25 @@ object Lab3 extends JsyApplication with Lab3Like {
         case Div => N(toNumber(eval(env, e1)) / toNumber(eval(env, e2)))
 
         /* === */
-        case Eq => B(eval(env, e1) == eval(env, e2))
+        case Eq => {
+          val v1 = eval(env,e1)
+          val v2 = eval(env,e2)
+          (v1,v2) match{
+            case (Function(_,_,_), _) => throw DynamicTypeError(v1)
+            case (_,Function(_,_,_))=> throw DynamicTypeError(v2)
+            case _ => B(v1 == eval(env, e2))
+          }
+        }
 
         /* !== */
-        case Ne => B(eval(env, e1) != eval(env, e2))
+        case Ne =>
+          val v1 = eval(env,e1)
+          val v2 = eval(env,e2)
+          (v1,v2) match{
+            case (Function(_,_,_), _) => throw DynamicTypeError(v1)
+            case (_,Function(_,_,_))=> throw DynamicTypeError(v2)
+            case _ => B(v1 != eval(env, e2))
+          }
 
         /* < */
         case Lt => (eval(env, e1), eval(env, e2)) match {
@@ -184,29 +200,34 @@ object Lab3 extends JsyApplication with Lab3Like {
           eval(env, e2)
       }
 
-      case Unary(uop, x) => uop match {
-        case Neg => N(-toNumber(eval(env, x)))
-        case Not => B(!toBoolean(eval(env, x)))
-      }
+      case Unary(uop, x) =>
+        val v1 = eval(env,x)
+        if(x==DynamicTypeError) throw DynamicTypeError(x)
+        else {
+          uop match {
+            case Neg => N(-toNumber(v1))
+            case Not => B(!toBoolean(v1))
+          }
+        }
 
-      case ConstDecl(x, e1, e2) => eval(extend(env, x, eval(env, e1)), e2)
+      case ConstDecl(x, e1, e2) => if(e1==DynamicTypeError) throw DynamicTypeError(e1) else eval(extend(env, x, eval(env, e1)), e2)
 
-      case If(bool, e1, e2) => if(toBoolean(eval(env, bool))) eval(env, e1) else eval(env, e2)
+      case If(bool, e1, e2) => if(bool==DynamicTypeError) throw DynamicTypeError(bool) else if(toBoolean(eval(env, bool))) eval(env, e1) else eval(env, e2)
 
       /* Inductive Cases */
-      case Print(e1) => println(toStr(eval(env, e1))); Undefined
+      case Print(e1) => if(e1==DynamicTypeError) throw DynamicTypeError(e1) else println(toStr(eval(env, e1))); Undefined
 
       case Var(x) => lookup(env, x)
 
 
       // ****** Your cases here
 
-      case Call(e1, e2) => eval(env,e1) match {
+      case Call(e1, e2) => if(e2==DynamicTypeError) throw DynamicTypeError(e2) else eval(env,e1) match {
         case Function(p, x, body) => p match {
           case None => eval(extend(env, x, eval(env, e2)), body)
           case Some(s) => eval(extend(extend(env, x, eval(env, e2)), s, Function(Some(s), x, body)), body)
         }
-        case _ => ??? // delete this line when done
+        case _ => throw DynamicTypeError(e1)
       }
     }
   }
@@ -265,8 +286,8 @@ object Lab3 extends JsyApplication with Lab3Like {
           case Lt | Le | Gt | Ge => B(inequalityVal(bop, e1, e2))
           case Eq | Ne =>{
             (e1,e2) match{
-              case (_,Function(_,_,_))=> ???
-              case (Function(_,_,_), _)=> ???
+              case (_,Function(_,_,_))=> throw DynamicTypeError(e2)
+              case (Function(_,_,_), _)=> throw DynamicTypeError(e1)
               case (v1,v2)=> bop match {
                 case Eq=> B(e1==e2)
                 case Ne=> B(e1!=e2)
@@ -299,31 +320,40 @@ object Lab3 extends JsyApplication with Lab3Like {
             case None=> substitute(body, e2, x)
             case Some(f)=> substitute(substitute(body,e2,x), e1, f)
           }
+          case _ => throw DynamicTypeError(e1)
         }
       }
       /* Inductive Cases: Search Rules */
       case Print(e1) => Print(step(e1))
 
       // ****** Your cases here
-      case Unary(uop, e1) => uop match{
-        case Neg => Unary(Neg, step(e1))
-        case Not => Unary(Not, step(e1))
-      }
+      case Unary(uop, e1) =>
+        val v1 = step(e1)
+        if (v1!=DynamicTypeError) {
+          uop match {
+            case Neg => Unary(Neg, step(e1))
+            case Not => Unary(Not, step(e1))
+          }
+        }
+        else throw DynamicTypeError(e1)
       case Binary(bop, e1, e2) if(isValue(e1))=> {
-        bop match{
-          case Plus | Minus | Times | Div | Lt | Le | Gt | Ge => Binary(bop,e1,step(e2))
-          case Eq | Ne => e1 match {
-            case Function(_,_,_) => ???
-            case _ => Binary(bop,e1,step(e2))
+        if (step(e2) == DynamicTypeError) throw DynamicTypeError(e2)
+        else {
+          bop match {
+            case Plus | Minus | Times | Div | Lt | Le | Gt | Ge => Binary(bop, e1, step(e2))
+            case Eq | Ne => e1 match {
+              case Function(_, _, _) => ???
+              case _ => Binary(bop, e1, step(e2))
+            }
           }
         }
       }
-      case Binary(bop, e1, e2)=> Binary(bop, step(e1), e2)
-      case Print(e1) => Print(step(e1))
-      case If(e1,e2,e3) => If(step(e1),e2,e3)
-      case ConstDecl(x, e1, e2)=> ConstDecl(x, step(e1), e2)
-      case Call(e1,e2) if(isValue(e1))=> Call(e1, step(e2))
-      case Call(e1,e2) => Call(step(e1),e2)
+      case Binary(bop, e1, e2)=> if(step(e1)==DynamicTypeError) throw DynamicTypeError(e1) else Binary(bop, step(e1), e2)
+      case Print(e1) => if(step(e1)==DynamicTypeError) throw DynamicTypeError(e1) else Print(step(e1))
+      case If(e1,e2,e3) => if(step(e1)==DynamicTypeError) throw DynamicTypeError(e1) else If(step(e1),e2,e3)
+      case ConstDecl(x, e1, e2)=> if (step(e1)==DynamicTypeError) throw DynamicTypeError(e1) else ConstDecl(x, step(e1), e2)
+      case Call(e1,e2) if(isValue(e1))=> if (step(e2)==DynamicTypeError) throw DynamicTypeError(e2) else Call(e1, step(e2))
+      case Call(e1,e2) => if(step(e1)==DynamicTypeError) throw DynamicTypeError(e1) else Call(step(e1),e2)
       /* Cases that should never match. Your cases above should ensure this. */
       case Var(_) => throw new AssertionError("Gremlins: internal error, not closed expression.")
       case N(_) | B(_) | Undefined | S(_) | Function(_, _, _) => throw new AssertionError("Gremlins: internal error, step should not be called on values.");

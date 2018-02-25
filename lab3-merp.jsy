@@ -1,0 +1,16 @@
+const x = 15;
+const a = function(x) {return 2 * x;}
+jsy.print(r);
+
+const x = 10;
+const plus = function(x) { return function(y) { return 12 + 33; } };
+jsy.print(plus(12)(33));
+
+const x = 5;
+const y = function(y) { return 2; };
+const z = function(x) { return y(3); };
+jsy.print(z(3));
+
+const x = 1;
+const times = function(x) { return function(y) { return 11 * 5; } };
+jsy.print(times(11)(5));
